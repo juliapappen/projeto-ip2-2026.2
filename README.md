@@ -1,4 +1,6 @@
-![Diagrama de Classes AlimentaBem](docs/diagrama-classes.jpg)
+## Diagrama de Classes
+
+![Diagrama de Classes](docs/diagrama.jpg)
 
 
 # Sistema AlimentaBem
