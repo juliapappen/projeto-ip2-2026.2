@@ -1,0 +1,106 @@
+package com.alimentabem.service;
+
+import com.alimentabem.model.*;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class RelatorioService {
+    private final NutricaoService nutricaoService;
+
+    public RelatorioService(NutricaoService nutricaoService) {
+        this.nutricaoService = nutricaoService;
+    }
+
+    public ResultadoNutricional calcularNutricionalDaDoacao(Doacao doacao) throws IOException, InterruptedException {
+        double totalCalorias = 0;
+        double totalProteinas = 0;
+        for (ItemDoacao item : doacao.getItens()) {
+            totalCalorias += calcularContribuicao(item.getAlimento(), item.getQuantidade(), true);
+            totalProteinas += calcularContribuicao(item.getAlimento(), item.getQuantidade(), false);
+        }
+        return new ResultadoNutricional(totalCalorias, totalProteinas);
+    }
+
+    private double calcularContribuicao(Alimento alimento, double quantidadeEmKgOuL, boolean calorias)
+            throws IOException, InterruptedException {
+        ValorNutricional info = alimento.getValorNutricional();
+        if (info == null) {
+            info = nutricaoService.consultar(alimento.getNome());
+            alimento.setValorNutricional(info);
+        }
+        double fatorPara100g = (quantidadeEmKgOuL * 1000) / 100.0;
+        return fatorPara100g * (calorias ? info.getCaloriasPor100g() : info.getProteinasPor100gEmGramas());
+    }
+
+    public void exportarRelatorioDoacoesCsv(List<Doacao> todasAsDoacoes, LocalDate inicio, LocalDate fim, CategoriaAlimento categoriaFiltro, String caminhoArquivo) throws IOException {
+        try (FileWriter escritor = new FileWriter(caminhoArquivo)) {
+            escritor.write("data_doacao;doador;alimento;categoria;quantidade;unidade;validade\n");
+            for (Doacao doacao : todasAsDoacoes) {
+                boolean dentroDoPeriodo = !doacao.getDataDoacao().isBefore(inicio) && !doacao.getDataDoacao().isAfter(fim);
+                if (!dentroDoPeriodo) continue;
+                for (ItemDoacao item : doacao.getItens()) {
+                    if (categoriaFiltro != null && item.getAlimento().getCategoria() != categoriaFiltro) continue;
+                    escritor.write(String.join(";",
+                            doacao.getDataDoacao().toString(),
+                            doacao.getDoador().getNome(),
+                            item.getAlimento().getNome(),
+                            item.getAlimento().getCategoria().toString(),
+                            String.valueOf(item.getQuantidade()),
+                            item.getAlimento().getUnidadeMedida().getSigla(),
+                            item.getDataValidade().toString()
+                    ) + "\n");
+                }
+            }
+        }
+    }
+
+    public Map<String, ResultadoNutricional> gerarRelatorioNutricionalPorInstituicao(
+            List<Distribuicao> historico, YearMonth mes) throws IOException, InterruptedException {
+
+        Map<String, ResultadoNutricional> totalPorInstituicao = new HashMap<>();
+        for (Distribuicao distribuicao : historico) {
+            if (!YearMonth.from(distribuicao.getDataDistribuicao()).equals(mes)) continue;
+            String nomeInstituicao = distribuicao.getInstituicao().getNome();
+            ResultadoNutricional acumulado =
+                    totalPorInstituicao.getOrDefault(nomeInstituicao, new ResultadoNutricional(0, 0));
+            for (ItemDistribuicao item : distribuicao.getItens()) {
+                double calorias = calcularContribuicao(item.getLote().getAlimento(), item.getQuantidadeRetirada(), true);
+                double proteinas = calcularContribuicao(item.getLote().getAlimento(), item.getQuantidadeRetirada(), false);
+                acumulado = acumulado.somar(calorias, proteinas);
+            }
+            totalPorInstituicao.put(nomeInstituicao, acumulado);
+        }
+        return totalPorInstituicao;
+    }
+
+    public List<LoteEstoque> listarItensVencendoEm7Dias(EstoqueService estoqueService) {
+        return estoqueService.listarItensVencendoEm7Dias();
+    }
+
+    public static class ResultadoNutricional {
+        private final double totalCalorias;
+        private final double totalProteinas;
+
+        public ResultadoNutricional(double totalCalorias, double totalProteinas) {
+            this.totalCalorias = totalCalorias;
+            this.totalProteinas = totalProteinas;
+        }
+
+        public ResultadoNutricional somar(double calorias, double proteinas) {
+            return new ResultadoNutricional(this.totalCalorias + calorias, this.totalProteinas + proteinas);
+        }
+
+        public double getTotalCalorias() { return totalCalorias; }
+        public double getTotalProteinas() { return totalProteinas; }
+
+        @Override
+        public String toString() {
+            return String.format("%.1f kcal / %.1f g de proteína", totalCalorias, totalProteinas);
+        }
+    }
+}
