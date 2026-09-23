@@ -1,0 +1,4 @@
+bin/
+.vscode/
+*.class
+relatorio_doacoes.csv
