@@ -1,6 +1,6 @@
 ## Diagrama de Classes
 
-![Diagrama de Classes](docs/diagrama.jpg)
+![alt text](diagrama.jpg.jpeg)
 
 
 # Sistema AlimentaBem
@@ -57,5 +57,5 @@ JavaFX, USDA FoodData Central (https://fdc.nal.usda.gov/api-key-signup — chave
 ## Integrantes do grupo com nome completo
 * Enzo EStevão dos Santos Alheiros - Enzo.Estevao@ufrpe.br
 * Julia Maria da Rocha Barbosa Pappen - Julia.Pappen@ufrpe.br
-* Lucas José Amaral da Silva - lucasjoseamaral@ufrpe.br
+* Lucas José Amaral da Silva - lucas.joseamaral@ufrpe.br
 * Marcella Barbosa Mascarenhas - Marcella.Mascarenhas@ufrpe.br
