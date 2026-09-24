@@ -1,6 +1,8 @@
 ## Diagrama de Classes
 
-![alt text](diagramaip2.jpg.jpeg)
+![git add .
+git commit -m "docs: atualiza imagem do diagrama de classes"
+git push](diagrama.jpg.jpeg)
 
 
 # Sistema AlimentaBem
