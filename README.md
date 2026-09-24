@@ -1,6 +1,6 @@
 ## Diagrama de Classes
 
-![alt text](diagrama.jpg.jpeg)
+![alt text](diagramaip2.jpg.jpeg)
 
 
 # Sistema AlimentaBem
