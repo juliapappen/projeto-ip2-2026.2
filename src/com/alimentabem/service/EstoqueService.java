@@ -1,0 +1,129 @@
+package com.alimentabem.service;
+
+import com.alimentabem.exception.ValidacaoException;
+import com.alimentabem.model.Alimento;
+import com.alimentabem.model.Doacao;
+import com.alimentabem.model.ItemDoacao;
+import com.alimentabem.model.LoteEstoque;
+import com.alimentabem.repository.IRepositorioEstoque;
+
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+public class EstoqueService {
+    private final IRepositorioEstoque repositorioEstoque;
+
+    public EstoqueService(IRepositorioEstoque repositorioEstoque) {
+        if (repositorioEstoque == null) {
+            throw new IllegalArgumentException("O repositório de estoque não pode ser nulo.");
+        }
+        this.repositorioEstoque = repositorioEstoque;
+    }
+
+
+    public List<LoteEstoque> registrarDoacao(Doacao doacao) {
+        if (doacao == null) {
+            throw new IllegalArgumentException("A doação não pode ser nula.");
+        }
+        doacao.validarQueTemItens();
+        for (ItemDoacao item : doacao.getItens()) {
+            validarValidade(item.getAlimento(), item.getDataValidade());
+        }
+        List<LoteEstoque> afetados = new ArrayList<>();
+        for (ItemDoacao item : doacao.getItens()) {
+            afetados.add(registrarEntrada(item));
+        }
+        return afetados;
+    }
+
+    public LoteEstoque registrarEntrada(ItemDoacao item) {
+        return registrarEntrada(item.getAlimento(), item.getQuantidade(), item.getDataValidade());
+    }
+
+    public LoteEstoque registrarEntrada(Alimento alimento, double quantidade, LocalDate dataValidade) {
+        if (alimento == null) {
+            throw new IllegalArgumentException("O alimento não pode ser nulo.");
+        }
+        if (quantidade <= 0) {
+            throw new IllegalArgumentException("A quantidade deve ser maior que zero.");
+        }
+        validarValidade(alimento, dataValidade);
+
+        for (LoteEstoque lote : repositorioEstoque.listarTodos()) {
+            if (lote.getAlimento().equals(alimento) && lote.getDataValidade().equals(dataValidade)) {
+                lote.adicionar(quantidade);
+                return lote;
+            }
+        }
+        LoteEstoque novo = new LoteEstoque(alimento, quantidade, dataValidade);
+        repositorioEstoque.adicionarLote(novo);
+        return novo;
+    }
+
+    private void validarValidade(Alimento alimento, LocalDate dataValidade) {
+        if (dataValidade == null) {
+            throw new IllegalArgumentException("A data de validade é obrigatória.");
+        }
+        if (dataValidade.isBefore(LocalDate.now())) {
+            throw new ValidacaoException("Não é possível receber '" + alimento.getNome()
+                + "': a validade (" + dataValidade + ") já está vencida.");
+        }
+    }
+
+
+    public void retirar(String idLote, double quantidade) {
+        LoteEstoque lote = buscarLotePorId(idLote)
+            .orElseThrow(() -> new ValidacaoException("Lote não encontrado: " + idLote));
+        if (lote.estaVencido()) {
+            throw new ValidacaoException("O lote " + lote + " está vencido e não pode ser distribuído.");
+        }
+        lote.retirar(quantidade);
+    }
+
+
+    public Optional<LoteEstoque> buscarLotePorId(String idLote) {
+        if (idLote == null) return Optional.empty();
+        return Optional.ofNullable(repositorioEstoque.buscarPorId(idLote));
+    }
+
+    public List<LoteEstoque> listarLotes() {
+        return repositorioEstoque.listarTodos().stream()
+            .sorted(Comparator.comparing(LoteEstoque::getDataValidade))
+            .collect(Collectors.toList());
+    }
+
+    public List<LoteEstoque> listarLotesPorAlimento(Alimento alimento) {
+        return listarLotes().stream()
+            .filter(l -> l.getAlimento().equals(alimento))
+            .collect(Collectors.toList());
+    }
+
+    public List<LoteEstoque> listarLotesDisponiveisFIFO(Alimento alimento) {
+        return listarLotesPorAlimento(alimento).stream()
+            .filter(l -> !l.estaVencido() && l.getQuantidadeDisponivel() > 0)
+            .collect(Collectors.toList());
+    }
+
+    public double saldoDisponivel(Alimento alimento) {
+        return listarLotesDisponiveisFIFO(alimento).stream()
+            .mapToDouble(LoteEstoque::getQuantidadeDisponivel)
+            .sum();
+    }
+
+    public List<LoteEstoque> listarVencendoEm(int dias) {
+        LocalDate limite = LocalDate.now().plusDays(dias);
+        return listarLotes().stream()
+            .filter(l -> l.getQuantidadeDisponivel() > 0)
+            .filter(l -> !l.estaVencido() && !l.getDataValidade().isAfter(limite))
+            .collect(Collectors.toList());
+    }
+
+    public boolean possuiLotesComSaldo(Alimento alimento) {
+        return repositorioEstoque.listarTodos().stream()
+            .anyMatch(l -> l.getAlimento().equals(alimento) && l.getQuantidadeDisponivel() > 0);
+    }
+}
