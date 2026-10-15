@@ -7,6 +7,6 @@ public interface InstituicaoService {
     InstituicaoBeneficiaria cadastrar(String nome, String cep, int capacidadeMensal);
     InstituicaoBeneficiaria buscarPorNome(String nome);
     List<InstituicaoBeneficiaria> listarTodas();
-    void atualizar(String nomeAntigo, String novoNome, String novoCep, Integer novaCapacidade);
+    void atualizar(String nome, String novoNome, String novoCep, int novaCapacidade);
     void remover(String nome);
 }

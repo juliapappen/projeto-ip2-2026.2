@@ -14,13 +14,15 @@ public class EnderecoService {
     private static final String BASE_URL = "https://brasilapi.com.br/api/cep/v1/";
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
+    // REQ14: Validação do formato do CEP (deve conter 8 dígitos numéricos)
     private void validarFormatoCep(String cep) {
         if (cep == null || !cep.replace("-", "").matches("\\d{8}")) {
-            throw new ValidacaoException("Formato de CEP inválido. O CEP deve conter 8 dígitos.");
+            throw new ValidacaoException("CEP inválido: '" + cep + "'. O CEP deve conter 8 dígitos (REQ14).");
         }
     }
 
-        public Endereco consultaCep(String cep) throws IOException, InterruptedException {
+    // REQ14: Consulta do CEP na API externa
+    public Endereco consultaCep(String cep) throws IOException, InterruptedException {
         validarFormatoCep(cep);
         String cepLimpo = cep.replace("-", "");
         HttpRequest request = HttpRequest.newBuilder()
@@ -29,8 +31,8 @@ public class EnderecoService {
                 .build();
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-                if (response.statusCode() == 404) {
-            throw new ValidacaoException("CEP " + cep + " não foi encontrado na base de dados.");
+        if (response.statusCode() == 404) {
+            throw new ValidacaoException("CEP " + cep + " não foi encontrado na base de dados (REQ14).");
         }
         if (response.statusCode() != 200) {
             throw new IOException("Falha na consulta do CEP " + cep + ". Código de status: " + response.statusCode());
@@ -46,7 +48,7 @@ public class EnderecoService {
         );
     }
 
-        private String extrairCampo(String json, String campo) {
+    private String extrairCampo(String json, String campo) {
         Pattern padrao = Pattern.compile("\"" + campo + "\"\\s*:\\s*\"([^\"]*)\"");
         Matcher m = padrao.matcher(json);
         return m.find() ? m.group(1) : "";

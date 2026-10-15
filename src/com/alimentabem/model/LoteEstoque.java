@@ -46,10 +46,18 @@ public class LoteEstoque {
         if (quantidade <= 0) {
             throw new IllegalArgumentException("A quantidade a retirar deve ser maior que zero.");
         }
+
+        // REQ13: impede rigorosamente a saída/distribuição de qualquer lote vencido
+        if (estaVencido()) {
+            throw new ValidacaoException(
+                "O lote de " + alimento.getNome() + " venceu em " + dataValidade + " e não pode ser distribuído (REQ13).");
+        }
+
         if (quantidade > quantidadeDisponivel) {
             throw new ValidacaoException(
                 "Quantidade solicitada (" + quantidade + ") excede a quantidade disponível (" + quantidadeDisponivel + ") no lote de " + alimento.getNome() + " com validade em " + dataValidade + ".");
         }
+
         this.quantidadeDisponivel -= quantidade;
     }
 

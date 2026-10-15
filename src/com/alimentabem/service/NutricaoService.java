@@ -18,11 +18,14 @@ public class NutricaoService {
     private static final String BASE_URL = "https://api.nal.usda.gov/fdc/v1/foods/search";
     
     private final HttpClient httpClient = HttpClient.newHttpClient();
+    
+    // cache para não repetir consultas
     private final Map<String, ValorNutricional> cache = new HashMap<>();
     
     public ValorNutricional consultar(String nomeAlimento) throws IOException, InterruptedException {
         String chaveCache = nomeAlimento.trim().toLowerCase();
         
+        // cache para não repetir consultas
         if (cache.containsKey(chaveCache)) {
             return cache.get(chaveCache);
         }

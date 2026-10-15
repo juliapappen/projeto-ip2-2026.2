@@ -1,15 +1,12 @@
 package com.alimentabem.model;
 
 public abstract class Doador {
-    private final String nome;
-    private final String telefone;
-    private final String email;
-    
+    private String nome;
+    private String telefone;
+    private String email;
+
     protected Doador(String nome, String telefone, String email) {
-        if (nome == null || nome.isBlank()) {
-            throw new IllegalArgumentException("O nome do doador não pode ser nulo ou vazio.");
-        }
-        this.nome = nome;
+        setNome(nome);
         this.telefone = telefone;
         this.email = email;
     }
@@ -18,5 +15,20 @@ public abstract class Doador {
     public String getTelefone() { return telefone; }
     public String getEmail() { return email; }
 
+    public void setNome(String nome) {
+        if (nome == null || nome.isBlank()) {
+            throw new IllegalArgumentException("O nome do doador não pode ser nulo ou vazio.");
+        }
+        this.nome = nome.trim();
+    }
+
+    public void setTelefone(String telefone) { this.telefone = telefone; }
+    public void setEmail(String email) { this.email = email; }
+
     public abstract String getDocumento();
+
+    @Override
+    public String toString() {
+        return nome + " (" + getDocumento() + ")";
+    }
 }

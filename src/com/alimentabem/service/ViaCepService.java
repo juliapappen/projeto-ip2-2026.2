@@ -7,16 +7,20 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ViaCepService {
 
     public Endereco buscarEnderecoPorCep(String cepLimpo) {
-        if (cepLimpo == null || cepLimpo.length() != 8) {
-            throw new ValidacaoException("CEP inválido! O CEP deve conter exatamente 8 dígitos.");
+        if (cepLimpo == null || !cepLimpo.replaceAll("\\D", "").matches("\\d{8}")) {
+            throw new ValidacaoException("CEP inválido: '" + cepLimpo + "'. O CEP deve conter exatamente 8 dígitos (REQ14).");
         }
 
+        String cepNormalizado = cepLimpo.replaceAll("\\D", "");
+
         try {
-            String url = "https://brasilapi.com.br/api/cep/v1/" + cepLimpo;
+            String url = "https://brasilapi.com.br/api/cep/v1/" + cepNormalizado;
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
@@ -25,31 +29,35 @@ public class ViaCepService {
 
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
+            if (response.statusCode() == 404) {
+                throw new ValidacaoException("CEP " + cepNormalizado + " não encontrado na base de dados (REQ14).");
+            }
             if (response.statusCode() != 200) {
-                throw new ValidacaoException("CEP " + cepLimpo + " não encontrado na base nacional (BrasilAPI).");
+                throw new ValidacaoException("Falha na consulta do CEP " + cepNormalizado + ". Código HTTP: " + response.statusCode());
             }
 
             String json = response.body();
-            String rua = extrairJson(json, "street");
-            String bairro = extrairJson(json, "neighborhood");
-            String cidade = extrairJson(json, "city");
-            String estado = extrairJson(json, "state");
+            String rua = extrairCampo(json, "street");
+            String bairro = extrairCampo(json, "neighborhood");
+            String cidade = extrairCampo(json, "city");
+            String estado = extrairCampo(json, "state");
 
-            return new Endereco(cepLimpo, rua, bairro, cidade, estado);
+            if (cidade.isEmpty()) {
+                throw new ValidacaoException("A consulta do CEP " + cepNormalizado + " não retornou um endereço válido (REQ14).");
+            }
+
+            return new Endereco(cepNormalizado, rua, bairro, cidade, estado);
 
         } catch (ValidacaoException e) {
             throw e;
         } catch (Exception e) {
-            return new Endereco(cepLimpo, "Rua Desconhecida", "Bairro Desconhecido", "Cidade Desconhecida", "UF");
+            throw new ValidacaoException("Erro ao conectar ao serviço de busca de CEP (REQ14): " + e.getMessage());
         }
     }
 
-    private String extrairJson(String json, String chave) {
-        String busca = "\"" + chave + "\":\"";
-        int inicio = json.indexOf(busca);
-        if (inicio == -1) return "";
-        inicio += busca.length();
-        int fim = json.indexOf("\"", inicio);
-        return (fim != -1) ? json.substring(inicio, fim) : "";
+    private String extrairCampo(String json, String campo) {
+        Pattern padrao = Pattern.compile("\"" + campo + "\"\\s*:\\s*\"([^\"]*)\"");
+        Matcher matcher = padrao.matcher(json);
+        return matcher.find() ? matcher.group(1) : "";
     }
 }

@@ -5,6 +5,7 @@ import com.alimentabem.model.*;
 import com.alimentabem.repository.IRepositorioDistribuicao;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -13,17 +14,29 @@ public class DistribuicaoServiceImpl implements DistribuicaoService {
     private final EstoqueService estoqueService;
 
     public DistribuicaoServiceImpl(IRepositorioDistribuicao repoDistribuicao, EstoqueService estoqueService) {
+        if (repoDistribuicao == null) {
+            throw new IllegalArgumentException("O repositório de distribuições não pode ser nulo.");
+        }
+        if (estoqueService == null) {
+            throw new IllegalArgumentException("O serviço de estoque não pode ser nulo.");
+        }
         this.repoDistribuicao = repoDistribuicao;
         this.estoqueService = estoqueService;
     }
 
     @Override
-    public Distribuicao registrarDistribuicao(InstituicaoBeneficiaria instituicao, 
-                                                Map<Alimento, Double> itensSolicitados, 
-                                                int familiasAtendidas, 
-                                                LocalDate data) {
+    public Distribuicao registrarDistribuicao(InstituicaoBeneficiaria instituicao,
+                                             Map<Alimento, Double> itensSolicitados,
+                                             int familiasAtendidas,
+                                             LocalDate data) {
         if (instituicao == null) {
             throw new ValidacaoException("A instituição é obrigatória.");
+        }
+        if (data == null) {
+            throw new ValidacaoException("A data da distribuição é obrigatória.");
+        }
+        if (familiasAtendidas <= 0) {
+            throw new ValidacaoException("O número de famílias atendidas deve ser maior que zero.");
         }
         if (itensSolicitados == null || itensSolicitados.isEmpty()) {
             throw new ValidacaoException("Selecione ao menos um item de alimento para distribuir.");
@@ -31,39 +44,50 @@ public class DistribuicaoServiceImpl implements DistribuicaoService {
 
         int familiasAtendidasNoMes = calcularFamiliasAtendidasNoMes(instituicao, data);
         if (familiasAtendidasNoMes + familiasAtendidas > instituicao.getCapacidadeMensal()) {
-            throw new ValidacaoException("Distribuição bloqueada: a instituição '" + instituicao.getNome() + 
-                "' tem capacidade para " + instituicao.getCapacidadeMensal() + " famílias/mês. Já atendeu " + 
+            throw new ValidacaoException("Distribuição bloqueada: a instituição '" + instituicao.getNome() +
+                "' tem capacidade para " + instituicao.getCapacidadeMensal() + " famílias/mês. Já atendeu " +
                 familiasAtendidasNoMes + " este mês e tentou adicionar mais " + familiasAtendidas + ".");
         }
 
         Distribuicao distribuicao = new Distribuicao(instituicao, data, familiasAtendidas);
 
+        // FASE 1: Apenas PLANEJA (não altera o estoque). Se qualquer item falhar, nada é retirado do estoque.
+        List<ItemDistribuicao> plano = new ArrayList<>();
         for (Map.Entry<Alimento, Double> entry : itensSolicitados.entrySet()) {
             Alimento alimento = entry.getKey();
-            double quantidadeNecessaria = entry.getValue();
-
-            double saldoDisponivel = estoqueService.saldoDisponivel(alimento);
-            if (quantidadeNecessaria > saldoDisponivel) {
-                throw new ValidacaoException("Estoque insuficiente de '" + alimento.getNome() + 
-                    "'. Solicitado: " + quantidadeNecessaria + " " + alimento.getUnidadeMedida().getSigla() + 
-                    ", Disponível: " + saldoDisponivel);
+            Double quantidade = entry.getValue();
+            if (alimento == null || quantidade == null || quantidade <= 0) {
+                throw new ValidacaoException("Informe um alimento e uma quantidade maior que zero.");
             }
 
-            List<LoteEstoque> lotesFIFO = estoqueService.listarLotesDisponiveisFIFO(alimento);
-
-            double restanteParaRetirar = quantidadeNecessaria;
-            for (LoteEstoque lote : lotesFIFO) {
-                if (restanteParaRetirar <= 0) break;
-
-                if (lote.estaVencido()) continue;
-
-                double qtdDoLote = Math.min(lote.getQuantidadeDisponivel(), restanteParaRetirar);
-                
-                estoqueService.retirar(lote.getId(), qtdDoLote);
-
-                distribuicao.adicionarItem(new ItemDistribuicao(lote, qtdDoLote));
-                restanteParaRetirar -= qtdDoLote;
+            double restante = quantidade;
+            double quantidadeVencida = 0;
+            for (LoteEstoque lote : estoqueService.listarLotesDisponiveisFIFO(alimento)) {
+                if (lote.getQuantidadeDisponivel() <= 0) continue;
+                if (lote.estaVencido()) {                       // REQ13: lote vencido nunca é utilizado
+                    quantidadeVencida += lote.getQuantidadeDisponivel();
+                    continue;
+                }
+                if (restante <= 0) break;
+                double qtdDoLote = Math.min(lote.getQuantidadeDisponivel(), restante); // REQ18: FIFO
+                plano.add(new ItemDistribuicao(lote, qtdDoLote));
+                restante -= qtdDoLote;
             }
+
+            if (restante > 0) {                                  // REQ16: Validação de falta no estoque
+                String sigla = alimento.getUnidadeMedida() != null ? alimento.getUnidadeMedida().getSigla() : "";
+                String aviso = quantidadeVencida > 0
+                        ? " Existem " + quantidadeVencida + " " + sigla + " em lotes vencidos, que não podem ser distribuídos (REQ13)."
+                        : "";
+                throw new ValidacaoException("Estoque insuficiente de '" + alimento.getNome() +
+                    "'. Faltam " + restante + " " + sigla + "." + aviso);
+            }
+        }
+
+        // FASE 2: Todos os itens foram aprovados na validação. Efetua as retiradas reais do estoque.
+        for (ItemDistribuicao item : plano) {
+            estoqueService.retirar(item.getLote().getId(), item.getQuantidadeRetirada());
+            distribuicao.adicionarItem(item);
         }
 
         distribuicao.validarQueTemItens();
@@ -71,10 +95,12 @@ public class DistribuicaoServiceImpl implements DistribuicaoService {
         return distribuicao;
     }
 
-    private int calcularFamiliasAtendidasNoMes(InstituicaoBeneficiaria inst, LocalDate data) {
-        return repoDistribuicao.buscarPorInstituicao(inst.getNome()).stream()
-                .filter(d -> d.getDataDistribuicao().getMonth() == data.getMonth() && 
-                             d.getDataDistribuicao().getYear() == data.getYear())
+    private int calcularFamiliasAtendidasNoMes(InstituicaoBeneficiaria instituicao, LocalDate data) {
+        if (instituicao == null || data == null) return 0;
+        return repoDistribuicao.listarTodos().stream()
+                .filter(d -> d.getInstituicao().equals(instituicao))
+                .filter(d -> d.getDataDistribuicao().getYear() == data.getYear() &&
+                             d.getDataDistribuicao().getMonth() == data.getMonth())
                 .mapToInt(Distribuicao::getFamiliasAtendidas)
                 .sum();
     }

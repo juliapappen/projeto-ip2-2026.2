@@ -9,6 +9,6 @@ public interface AlimentoService {
     Alimento cadastrar(String nome, CategoriaAlimento categoria, UnidadeMedida unidadeMedida);
     Alimento buscarPorNome(String nome);
     List<Alimento> listarTodos();
-    void atualizar(String nomeAntigo, String novoNome, CategoriaAlimento novaCategoria, UnidadeMedida novaUnidade);
+    void atualizar(String nome, String novoNome, CategoriaAlimento categoria, UnidadeMedida unidade);
     void remover(String nome);
 }

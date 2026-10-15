@@ -1,7 +1,7 @@
 ## Diagrama de Classes
 
 ![git add .
-git commit -m "docs: atualiza imagem do diagrama de classes"
+git commit -m "docs: adiciona imagem
 git push](diagrama.jpg.jpeg)
 
 
@@ -57,7 +57,7 @@ JavaFX, USDA FoodData Central (https://fdc.nal.usda.gov/api-key-signup — chave
 
 
 ## Integrantes do grupo com nome completo
-* Enzo EStevão dos Santos Alheiros - Enzo.Estevao@ufrpe.br
+* Enzo Estevão dos Santos Alheiros - Enzo.Estevao@ufrpe.br
 * Julia Maria da Rocha Barbosa Pappen - Julia.Pappen@ufrpe.br
 * Lucas José Amaral da Silva - lucas.joseamaral@ufrpe.br
 * Marcella Barbosa Mascarenhas - Marcella.Mascarenhas@ufrpe.br

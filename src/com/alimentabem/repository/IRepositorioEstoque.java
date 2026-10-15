@@ -4,9 +4,10 @@ import com.alimentabem.model.Alimento;
 import com.alimentabem.model.LoteEstoque;
 import java.util.List;
 
-public interface IRepositorioEstoque extends Repositorio<LoteEstoque> {
+public interface IRepositorioEstoque {
     void adicionarLote(LoteEstoque lote);
     LoteEstoque buscarPorId(String id);
     List<LoteEstoque> buscarPorAlimento(Alimento alimento);
-    List<LoteEstoque> buscarPorAlimento(String nomeAlimento);
+    List<LoteEstoque> listarTodos();
+    void removerLote(String id);
 }

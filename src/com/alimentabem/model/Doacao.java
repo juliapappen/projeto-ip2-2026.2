@@ -30,6 +30,9 @@ public class Doacao {
     }
 
     public void adicionarItem(ItemDoacao item) {
+        if (item == null) {
+            throw new IllegalArgumentException("O item de doação não pode ser nulo.");
+        }
         if (item.getDataValidade().isBefore(dataDoacao)) {
             throw new ValidacaoException(
                 "Não é possível cadastrar o item '" + item.getAlimento().getNome() + "' : a validade (" + item.getDataValidade() + ") já está vencida na data da doação (" + dataDoacao + ").");

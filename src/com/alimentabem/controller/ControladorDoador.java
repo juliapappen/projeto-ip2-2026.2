@@ -4,6 +4,7 @@ import com.alimentabem.exception.ElementoJaCadastradoException;
 import com.alimentabem.exception.ElementoNaoEncontradoException;
 import com.alimentabem.exception.ValidacaoException;
 import com.alimentabem.model.Doador;
+import com.alimentabem.model.Empresa;
 import com.alimentabem.repository.IRepositorioDoador;
 
 import java.util.List;
@@ -23,7 +24,7 @@ public class ControladorDoador {
             throw new ValidacaoException("O doador não pode ser nulo.");
         }
         if (repositorio.buscarPorDocumento(doador.getDocumento()) != null) {
-            throw new ElementoJaCadastradoException("Já existe um doador registado com o documento: " + doador.getDocumento());
+            throw new ElementoJaCadastradoException("Já existe um doador registrado com o documento: " + doador.getDocumento());
         }
         repositorio.inserir(doador);
     }
@@ -41,6 +42,17 @@ public class ControladorDoador {
 
     public List<Doador> listarDoadores() {
         return repositorio.listarTodos();
+    }
+
+    public void atualizarDoador(String documento, String nome, String telefone, String email, String razaoSocial) {
+        Doador doador = buscarPorDocumento(documento);
+        doador.setNome(nome);
+        doador.setTelefone(telefone);
+        doador.setEmail(email);
+        if (doador instanceof Empresa && razaoSocial != null && !razaoSocial.isBlank()) {
+            ((Empresa) doador).setRazaoSocial(razaoSocial);
+        }
+        repositorio.atualizar(doador);
     }
 
     public void removerDoador(String documento) {

@@ -7,17 +7,20 @@ import com.alimentabem.model.Alimento;
 import com.alimentabem.model.CategoriaAlimento;
 import com.alimentabem.model.UnidadeMedida;
 import com.alimentabem.repository.IRepositorioAlimento;
+import com.alimentabem.repository.IRepositorioEstoque;
 
 import java.util.List;
 
 public class AlimentoServiceImpl implements AlimentoService {
     private final IRepositorioAlimento repositorio;
+    private final IRepositorioEstoque repositorioEstoque;
 
-    public AlimentoServiceImpl(IRepositorioAlimento repositorio) {
-        if (repositorio == null) {
-            throw new IllegalArgumentException("O repositório de alimentos não pode ser nulo.");
+    public AlimentoServiceImpl(IRepositorioAlimento repositorio, IRepositorioEstoque repositorioEstoque) {
+        if (repositorio == null || repositorioEstoque == null) {
+            throw new IllegalArgumentException("Os repositórios não podem ser nulos.");
         }
         this.repositorio = repositorio;
+        this.repositorioEstoque = repositorioEstoque;
     }
 
     @Override
@@ -53,7 +56,10 @@ public class AlimentoServiceImpl implements AlimentoService {
     @Override
     public void atualizar(String nomeAntigo, String novoNome, CategoriaAlimento novaCategoria, UnidadeMedida novaUnidade) {
         Alimento existente = buscarPorNome(nomeAntigo);
-        if (novoNome != null && !novoNome.isBlank()) {
+        if (novoNome != null && !novoNome.isBlank() && !novoNome.trim().equalsIgnoreCase(existente.getNome())) {
+            if (repositorio.buscarPorNome(novoNome.trim()) != null) {
+                throw new ElementoJaCadastradoException("Já existe um alimento cadastrado com o nome: " + novoNome.trim());
+            }
             existente.setNome(novoNome);
         }
         if (novaCategoria != null) {
@@ -68,6 +74,9 @@ public class AlimentoServiceImpl implements AlimentoService {
     @Override
     public void remover(String nome) {
         Alimento alimento = buscarPorNome(nome);
+        if (!repositorioEstoque.buscarPorAlimento(alimento).isEmpty()) {
+            throw new ValidacaoException("Não é possível remover '" + alimento.getNome() + "': já existem doações/lotes registrados com esse alimento.");
+        }
         repositorio.remover(alimento.getId());
     }
 }

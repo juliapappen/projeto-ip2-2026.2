@@ -52,19 +52,24 @@ public class InstituicaoServiceImpl implements InstituicaoService {
     }
 
     @Override
-    public void atualizar(String nomeAntigo, String novoNome, String novoCep, Integer novaCapacidade) {
-        InstituicaoBeneficiaria existente = buscarPorNome(nomeAntigo);
+    public void atualizar(String nome, String novoNome, String novoCep, int novaCapacidade) {
+        InstituicaoBeneficiaria existente = buscarPorNome(nome);
+
         if (novoNome != null && !novoNome.isBlank()) {
             existente.setNome(novoNome);
         }
+
+        // REQ14: Se o CEP for alterado, revalida na API de CEP antes de atualizar
         if (novoCep != null && !novoCep.isBlank()) {
             String cepLimpo = novoCep.replaceAll("\\D", "");
             Endereco end = viaCepService.buscarEnderecoPorCep(cepLimpo);
             existente.setEndereco(end);
         }
-        if (novaCapacidade != null && novaCapacidade > 0) {
+
+        if (novaCapacidade > 0) {
             existente.setCapacidadeMensal(novaCapacidade);
         }
+
         repoInstituicao.atualizar(existente);
     }
 

@@ -24,6 +24,19 @@ public class EstoqueService {
         this.repositorioEstoque = repositorioEstoque;
     }
 
+    // Classe auxiliar para representar a sugestão de retirada por lote
+    public static class SugestaoRetirada {
+        private final LoteEstoque lote;
+        private final double quantidade;
+
+        public SugestaoRetirada(LoteEstoque lote, double quantidade) {
+            this.lote = lote;
+            this.quantidade = quantidade;
+        }
+
+        public LoteEstoque getLote() { return lote; }
+        public double getQuantidade() { return quantidade; }
+    }
 
     public List<LoteEstoque> registrarDoacao(Doacao doacao) {
         if (doacao == null) {
@@ -74,7 +87,6 @@ public class EstoqueService {
         }
     }
 
-
     public void retirar(String idLote, double quantidade) {
         LoteEstoque lote = buscarLotePorId(idLote)
             .orElseThrow(() -> new ValidacaoException("Lote não encontrado: " + idLote));
@@ -84,6 +96,50 @@ public class EstoqueService {
         lote.retirar(quantidade);
     }
 
+    // Algoritmo de Sugestão FIFO (REQ18) com bloqueio de vencidos (REQ13) e alerta de falta (REQ16)
+    public List<SugestaoRetirada> sugerirLotesParaDistribuicao(Alimento alimento, double quantidadeNecessaria) {
+        if (alimento == null) {
+            throw new IllegalArgumentException("O alimento não pode ser nulo.");
+        }
+        if (quantidadeNecessaria <= 0) {
+            throw new IllegalArgumentException("A quantidade necessária deve ser maior que zero.");
+        }
+
+        List<SugestaoRetirada> sugestoes = new ArrayList<>();
+        double restante = quantidadeNecessaria;
+        double quantidadeVencida = 0;
+
+        List<LoteEstoque> candidatos = new ArrayList<>();
+        for (LoteEstoque lote : repositorioEstoque.listarTodos()) {
+            if (!lote.getAlimento().equals(alimento) || lote.getQuantidadeDisponivel() <= 0) {
+                continue;
+            }
+            if (lote.estaVencido()) {
+                quantidadeVencida += lote.getQuantidadeDisponivel(); // REQ13: lote vencido nunca é sugerido
+            } else {
+                candidatos.add(lote);
+            }
+        }
+
+        candidatos.sort(Comparator.comparing(LoteEstoque::getDataValidade)); // REQ18: ordenação FIFO por vencimento
+
+        for (LoteEstoque lote : candidatos) {
+            if (restante <= 0) break;
+            double retirarDesteLote = Math.min(restante, lote.getQuantidadeDisponivel());
+            sugestoes.add(new SugestaoRetirada(lote, retirarDesteLote));
+            restante -= retirarDesteLote;
+        }
+
+        if (restante > 0) {
+            String sigla = alimento.getUnidadeMedida() != null ? alimento.getUnidadeMedida().getSigla() : "";
+            String aviso = quantidadeVencida > 0
+                    ? " Existem " + quantidadeVencida + " " + sigla + " em lotes vencidos, que não podem ser distribuídos (REQ13)."
+                    : "";
+            throw new ValidacaoException("Estoque insuficiente de '" + alimento.getNome() + "'. Faltam "
+                    + restante + " " + sigla + " (REQ16)." + aviso);
+        }
+        return sugestoes;
+    }
 
     public Optional<LoteEstoque> buscarLotePorId(String idLote) {
         if (idLote == null) return Optional.empty();
